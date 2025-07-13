@@ -50,6 +50,7 @@ pip install openai gradio python-dotenv
 
 ```bash
 python main.py
+```
 
 🖼️ Example Output
 Welcome to [Company X], where we treat bugs like features and interns like royalty...
