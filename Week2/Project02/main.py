@@ -4,6 +4,7 @@ from website import Website
 from typing import List
 from dotenv import load_dotenv
 from openai import OpenAI
+import ollama
 # from IPython.display import Markdown, display, update_display
 import gradio as gr
 
@@ -46,12 +47,12 @@ def get_links_user_prompt(website):
 def get_links(url):
     website = Website(url)
     response = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": link_system_prompt},
-            {"role": "user", "content": get_links_user_prompt(website)}
-      ],
-        response_format={"type": "json_object"}
+    model="gpt-4o-mini",
+    messages=[
+        {"role": "system", "content": link_system_prompt},
+        {"role": "user", "content": get_links_user_prompt(website)}
+    ],
+    response_format={"type": "json_object"}
     )
     result = response.choices[0].message.content
     return json.loads(result)
@@ -72,32 +73,30 @@ system_prompt = "You are an assistant that analyzes the contents of several rele
 and creates a short humorous, entertaining, jokey brochure about the company for prospective customers, investors and recruits. Respond in markdown.\
 Include details of company culture, customers and careers/jobs if you have the information."
 
-def get_brochure_user_prompt(url):
-    user_prompt = "You are looking at a company website \n"
+def get_brochure_user_prompt(company_name,url):
+    user_prompt = f"You are looking at a company website of {company_name} \n"
     user_prompt += f"Here are the contents of its landing page and other relevant pages; use this information to build a short brochure of the company in markdown.\n"
     user_prompt += get_all_details(url)
     user_prompt = user_prompt[:5_000] # Truncate if more than 5,000 characters
     return user_prompt
 
-def stream_gpt(prompt):
+def stream_gpt(company_name,url):
     messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": get_brochure_user_prompt(prompt)}
+            {"role": "user", "content": get_brochure_user_prompt(company_name,url)}
           ]
-    stream = openai.chat.completions.create(
-        model='gpt-4o-mini',
-        messages=messages,
-        stream=True
-    )
+    stream = openai.chat.completions.create(model='gpt-4o-mini', messages=messages,stream=True)
     result = ""
     for chunk in stream:
         result += chunk.choices[0].delta.content or ""
         yield result
 
+
 # print(stream_gpt("https://edwarddonner.com"))  # Test the function with a sample URL
 view = gr.Interface(
     fn=stream_gpt,
-    inputs=[gr.Textbox(label="Enter link of the website:")],
+    inputs=[gr.Textbox(label="Enter the company Name", placeholder="e.g. Edward Donner", lines=1),
+            gr.Textbox(label="Landing page URL including http:// or https://")],
     outputs=[gr.Markdown(label="Response:")],
     flagging_mode="never"
 )

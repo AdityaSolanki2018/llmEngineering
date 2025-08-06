@@ -53,9 +53,9 @@ python main.py
 ```
 
 🖼️ Example Output
-Welcome to [Company X], where we treat bugs like features and interns like royalty...
+Welcome to [IT Solutions], where we treat bugs like features and interns like royalty...
 
-(Insert screenshot of your output if available)
+
 
 📬 Let’s Connect
 This project is part of my journey into Agentic AI Engineering.
