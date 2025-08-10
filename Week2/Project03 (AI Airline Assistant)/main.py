@@ -1,38 +1,40 @@
-# imports
+# AI Airline assistant
 
+import openai
+import ollama
 import os
 import json
 from dotenv import load_dotenv
-from openai import OpenAI
 import gradio as gr
-
-# Initialization
+from jupyter_server.services.contents.fileio import path_to_intermediate
 
 load_dotenv(override=True)
-
 openai_api_key = os.getenv('OPENAI_API_KEY')
 if openai_api_key:
-    print(f"OpenAI API Key exists and begins {openai_api_key[:8]}")
+    print(f"Key is present and it begins with {openai_api_key[:8]}")
 else:
-    print("OpenAI API Key not set")
+    print("Key not found")
 
 MODEL = "gpt-4o-mini"
-openai = OpenAI()
+openai = openai.OpenAI()
 
-system_message = "You are a helpful assistant for an Airline called FlightAI. "
+system_message = "You are a helpful assistant for an Airline called FlightAI."
 system_message += "Give short, courteous answers, no more than 1 sentence. "
 system_message += "Always be accurate. If you don't know the answer, say so."
 
-# Let's start by making a useful function
-
-ticket_prices = {"london": "$799", "paris": "$899", "tokyo": "$1400", "berlin": "$499"}
+# Tool
+ticket_prices = {"london": "$799", "paris": "$899", "tokyo": "$1499", "berlin": "$499"}
+flight_timings = {"london" : "6:00am IST and 7:00 pm IST"}
 
 def get_ticket_price(destination_city):
-    print(f"Tool get_ticket_price called for {destination_city}")
+    print(f"Tool is called for city : {destination_city}")
     city = destination_city.lower()
     return ticket_prices.get(city, "Unknown")
 
-# There's a particular dictionary structure that's required to describe our function:
+def get_flight_timings(destination_city):
+    print(f"Tool called for city : {destination_city}")
+    city = destination_city.lower()
+    return  flight_timings.get(city,"Unknown")
 
 price_function = {
     "name": "get_ticket_price",
@@ -42,92 +44,75 @@ price_function = {
         "properties": {
             "destination_city": {
                 "type": "string",
-                "description": "The city that the customer wants to travel to",
+                "description": "The city that customer wants to travel to",
             },
         },
         "required": ["destination_city"],
-        "additionalProperties": False
+        "additionalProperties": False,
+    }
+}
+
+timings_function = {
+    "name": "get_flight_timings",
+    "description": "Get the timings of a return ticket to the destination city. Call this whenever you need to know the ticket price, for example when a customer asks 'When is a flight to this city'",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "destination_city": {
+                "type": "string",
+                "description": "The city that customer wants to travel to",
+            },
+        },
+        "required": ["destination_city"],
+        "additionalProperties": False,
     }
 }
 
 # And this is included in a list of tools:
+tools = [{"type": "function", "function": price_function},{"type": "function", "function": timings_function}]
 
-tools = [{"type": "function", "function": price_function}]
+def chat(message, history):
+    # print("History is :",history,"\n")
+    messages = [{"role": "system", "content": system_message}] + history + [{"role": "user", "content": message}]
 
-# Some imports for handling images
-
-import base64
-from io import BytesIO
-from PIL import Image
-
-def artist(city):
-    image_response = openai.images.generate(
-            model="dall-e-3",
-            prompt=f"An image representing a vacation in {city}, showing tourist spots and everything unique about {city}, in a vibrant pop-art style",
-            size="1024x1024",
-            n=1,
-            response_format="b64_json",
-        )
-    image_base64 = image_response.data[0].b64_json
-    image_data = base64.b64decode(image_base64)
-    return Image.open(BytesIO(image_data))
-
-
-
-def chat(history):
-    messages = [{"role": "system", "content": system_message}] + history
     response = openai.chat.completions.create(model=MODEL, messages=messages, tools=tools)
-    image = None
 
-    if response.choices[0].finish_reason == "tool_calls":
+    # When the model asks to run tool
+    if response.choices[0].finish_reason=="tool_calls":
         message = response.choices[0].message
-        response, city = handle_tool_call(message)
+        # print("Message ie response.choices[0].message :",message,"\n")
+        response,city = handle_tool_call(message)
+        # print("Response from handle_tool_call :",response)
         messages.append(message)
         messages.append(response)
-        image = artist(city)
         response = openai.chat.completions.create(model=MODEL, messages=messages)
+    return response.choices[0].message.content
 
-    reply = response.choices[0].message.content
-    history += [{"role": "assistant", "content": reply}]
-
-    # Comment out or delete the next line if you'd rather skip Audio for now..
-    # talker(reply)
-
-    return history, image
-
-# We have to write that function handle_tool_call:
 
 def handle_tool_call(message):
+    # print("Handle tool call : \n")
     tool_call = message.tool_calls[0]
+    func_name = tool_call.function.name
+    print("message.tool_cal[0] : ",tool_call)
+
     arguments = json.loads(tool_call.function.arguments)
     city = arguments.get('destination_city')
-    price = get_ticket_price(city)
-    response = {
-        "role": "tool",
-        "content": json.dumps({"destination_city": city,"price": price}),
-        "tool_call_id": tool_call.id
-    }
+
+    if func_name == 'get_ticket_price':
+        price = get_ticket_price(city)
+        response = {
+            "role" : "tool",
+            "content" : json.dumps({"destination_city":city, "price" : price}),
+            "tool_call_id" : tool_call.id
+        }
+    else:
+        timings = get_flight_timings(city)
+        response = {
+            "role": "tool",
+            "content": json.dumps({"destination_city": city, "timings": timings}),
+            "tool_call_id": tool_call.id
+        }
     return response, city
 
-# More involved Gradio code as we're not using the preset Chat interface!
-# Passing in inbrowser=True in the last line will cause a Gradio window to pop up immediately.
+gr.ChatInterface(fn=chat,type="messages").launch()
 
-with gr.Blocks() as ui:
-    with gr.Row():
-        chatbot = gr.Chatbot(height=500, type="messages")
-        image_output = gr.Image(height=500)
-    with gr.Row():
-        entry = gr.Textbox(label="Chat with our AI Assistant:")
-    with gr.Row():
-        clear = gr.Button("Clear")
-
-    def do_entry(message, history):
-        history += [{"role":"user", "content":message}]
-        return "", history
-
-    entry.submit(do_entry, inputs=[entry, chatbot], outputs=[entry, chatbot]).then(
-        chat, inputs=chatbot, outputs=[chatbot, image_output]
-    )
-    clear.click(lambda: None, inputs=None, outputs=chatbot, queue=False)
-
-ui.launch(inbrowser=True)
