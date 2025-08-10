@@ -24,13 +24,17 @@ system_message += "Always be accurate. If you don't know the answer, say so."
 
 # Tool
 ticket_prices = {"london": "$799", "paris": "$899", "tokyo": "$1499", "berlin": "$499"}
-
+flight_timings = {"london" : "6:00am IST and 7:00 pm IST"}
 
 def get_ticket_price(destination_city):
     print(f"Tool is called for city : {destination_city}")
     city = destination_city.lower()
     return ticket_prices.get(city, "Unknown")
 
+def get_flight_timings(destination_city):
+    print(f"Tool called for city : {destination_city}")
+    city = destination_city.lower()
+    return  flight_timings.get(city,"Unknown")
 
 price_function = {
     "name": "get_ticket_price",
@@ -48,8 +52,24 @@ price_function = {
     }
 }
 
+timings_function = {
+    "name": "get_flight_timings",
+    "description": "Get the timings of a return ticket to the destination city. Call this whenever you need to know the ticket price, for example when a customer asks 'When is a flight to this city'",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "destination_city": {
+                "type": "string",
+                "description": "The city that customer wants to travel to",
+            },
+        },
+        "required": ["destination_city"],
+        "additionalProperties": False,
+    }
+}
+
 # And this is included in a list of tools:
-tools = [{"type": "function", "function": price_function}]
+tools = [{"type": "function", "function": price_function},{"type": "function", "function": timings_function}]
 
 def chat(message, history):
     # print("History is :",history,"\n")
@@ -72,16 +92,26 @@ def chat(message, history):
 def handle_tool_call(message):
     # print("Handle tool call : \n")
     tool_call = message.tool_calls[0]
-    # print("message.tool_cal[0] : ",tool_call)
+    func_name = tool_call.function.name
+    print("message.tool_cal[0] : ",tool_call)
+
     arguments = json.loads(tool_call.function.arguments)
-    # print("arguments : ", arguments)
     city = arguments.get('destination_city')
-    price = get_ticket_price(city)
-    response = {
-        "role" : "tool",
-        "content" : json.dumps({"destination_city":city, "price" : price}),
-        "tool_call_id" : tool_call.id
-    }
+
+    if func_name == 'get_ticket_price':
+        price = get_ticket_price(city)
+        response = {
+            "role" : "tool",
+            "content" : json.dumps({"destination_city":city, "price" : price}),
+            "tool_call_id" : tool_call.id
+        }
+    else:
+        timings = get_flight_timings(city)
+        response = {
+            "role": "tool",
+            "content": json.dumps({"destination_city": city, "timings": timings}),
+            "tool_call_id": tool_call.id
+        }
     return response, city
 
 gr.ChatInterface(fn=chat,type="messages").launch()

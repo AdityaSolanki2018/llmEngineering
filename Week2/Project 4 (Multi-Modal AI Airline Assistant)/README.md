@@ -26,7 +26,7 @@ AI-Airline-Assistant/
 
 ### 1️⃣ Clone the repository
 ```bash
-git clone https://github.com/your-username/AI-Airline-Assistant.git
+git clone https://github.com/AdityaSolanki2018/AI-Airline-Assistant.git
 cd AI-Airline-Assistant
 ````
 ### 2️⃣ Create a virtual environment (optional but recommended)
