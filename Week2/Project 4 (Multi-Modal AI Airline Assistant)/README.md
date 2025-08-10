@@ -89,7 +89,8 @@ The chatbot will launch in your browser.
 - User: "How much is a ticket to Tokyo?"
 - AI: "A return ticket to Tokyo costs $1400."
 (Generates a vibrant image of Tokyo's tourist attractions)
-![img.png](img.png)
+<img width="1912" height="955" alt="image" src="https://github.com/user-attachments/assets/4f4a71a6-922a-47e7-9bfe-0d78aaac10d7" />
+
 
 ---
 
